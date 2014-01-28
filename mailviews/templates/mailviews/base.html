@@ -1,8 +1,11 @@
+{% load url from future %}
 <!doctype html>
 <html lang="en">
 <head>
 
     {% load mailviews %}
+
+    <meta charset="utf-8" />
 
     <link rel="stylesheet" type="text/css" href="{% mailviews_static 'mailviews/css/bootstrap.css' %}" />
     <link rel="stylesheet" type="text/css" href="{% mailviews_static 'mailviews/css/mailviews.css' %}" />
@@ -16,7 +19,7 @@
     <div class="navbar navbar-inverse navbar-fixed-top">
       <div class="navbar-inner">
         <div class="container">
-          <a class="brand" href="{% url mailviews:list %}">Message Preview</a>
+          <a class="brand" href="{% url 'mailviews:list' %}">Message Preview</a>
           {% block navigation %}{% endblock %}
         </div>
       </div>

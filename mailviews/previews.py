@@ -2,14 +2,20 @@ import logging
 import os
 from base64 import b64encode
 from collections import namedtuple
+from email.header import decode_header
 
-from django.conf.urls.defaults import include, patterns, url
+try:
+    from django.conf.urls import patterns, include, url
+except ImportError:
+    # Django <1.4 compat
+    from django.conf.urls.defaults import patterns, include, url
+
 from django.core.urlresolvers import reverse
 from django.http import Http404
+from django.shortcuts import render
 from django.utils.datastructures import SortedDict
 from django.utils.importlib import import_module
 from django.utils.module_loading import module_has_submodule
-from django.views.generic.simple import direct_to_template
 
 from mailviews.helpers import should_use_staticfiles
 from mailviews.utils import split_docstring, unimplemented
@@ -21,6 +27,17 @@ logger = logging.getLogger(__name__)
 URL_NAMESPACE = 'mailviews'
 
 ModulePreviews = namedtuple('ModulePreviews', ('module', 'previews'))
+
+
+def maybe_decode_header(header):
+    """
+    Decodes an encoded 7-bit ASCII header value into it's actual value.
+    """
+    value, encoding = decode_header(header)[0]
+    if encoding:
+        return value.decode(encoding)
+    else:
+        return value
 
 
 class PreviewSite(object):
@@ -71,7 +88,7 @@ class PreviewSite(object):
         """
         Returns a list view response containing all of the registered previews.
         """
-        return direct_to_template(request, 'mailviews/previews/list.html', {
+        return render(request, 'mailviews/previews/list.html', {
             'site': self,
         })
 
@@ -80,9 +97,10 @@ class PreviewSite(object):
         Looks up a preview in the index, returning a detail view response.
         """
         try:
-            return self.__previews[module][preview].detail_view(request)
+            preview = self.__previews[module][preview]
         except KeyError:
             raise Http404  # The provided module/preview does not exist in the index.
+        return preview.detail_view(request)
 
 
 class Preview(object):
@@ -154,7 +172,7 @@ class Preview(object):
 
             context['form'] = form
             if not form.is_bound or not form.is_valid():
-                return direct_to_template(request, 'mailviews/previews/detail.html', context)
+                return render(request, 'mailviews/previews/detail.html', context)
 
             kwargs.update(form.get_message_view_kwargs())
 
@@ -162,7 +180,7 @@ class Preview(object):
 
         message = message_view.render_to_message()
         raw = message.message()
-        headers = SortedDict((header, raw[header]) for header in self.headers)
+        headers = SortedDict((header, maybe_decode_header(raw[header])) for header in self.headers)
 
         context.update({
             'message': message,
@@ -178,12 +196,12 @@ class Preview(object):
                 if alternative[1] == 'text/html')
             context.update({
                 'html': html,
-                'escaped_html': b64encode(html),
+                'escaped_html': b64encode(html.encode('utf-8')),
             })
         except StopIteration:
             pass
 
-        return direct_to_template(request, self.template_name, context)
+        return render(request, self.template_name, context)
 
 
 def autodiscover():
